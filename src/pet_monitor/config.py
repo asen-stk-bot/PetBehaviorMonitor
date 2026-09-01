@@ -50,7 +50,7 @@ class DetectorConfig:
         pet_class_ids: COCO 中视为宠物的类别 id（猫=15、狗=16）。
     """
     model_name: str = os.environ.get("PET_MODEL", "yolov8n.pt")
-    conf_threshold: float = float(os.environ.get("PET_CONF", "0.35"))
+    conf_threshold: float = float(os.environ.get("PET_CONF", "0.25"))
     iou_threshold: float = float(os.environ.get("PET_IOU", "0.45"))
     device: str = os.environ.get("PET_DEVICE", "")
     imgsz: int = 640
@@ -143,6 +143,7 @@ CONFIG = AppConfig()
 def _serializable() -> dict:
     return {
         "detector": {
+            "model_name": CONFIG.detector.model_name,
             "conf_threshold": CONFIG.detector.conf_threshold,
             "iou_threshold": CONFIG.detector.iou_threshold,
             "device": CONFIG.detector.device,
@@ -191,7 +192,7 @@ def load_config(path: Path | None = None) -> bool:
         return False
 
     d = data.get("detector", {})
-    for k in ("conf_threshold", "iou_threshold", "imgsz"):
+    for k in ("model_name", "conf_threshold", "iou_threshold", "imgsz"):
         if k in d and d[k] is not None:
             setattr(CONFIG.detector, k, d[k])
     if d.get("device") is not None:

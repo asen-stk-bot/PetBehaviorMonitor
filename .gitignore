@@ -16,8 +16,15 @@ venv/
 .venv/
 env/
 
-# === 运行时数据（数据库、快照、报告、模型、视频，均由程序自动生成）===
-data/
+# === 运行时数据（数据库、快照、报告，均由程序自动生成）===
+# 注意：data/models/（YOLO 权重）与 data/videos/（测试视频）会被跟踪，
+# 这样克隆仓库即可运行，避免联网下载模型时遇到 SSL 问题。
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/snapshots/
+data/reports/
 *.db
 *.sqlite3
 

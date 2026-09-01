@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "model_name": "yolov8s.pt",
+    "conf_threshold": 0.2,
+    "iou_threshold": 0.45,
+    "device": "",
+    "imgsz": 640
+  },
+  "behavior": {
+    "resting_motion_px": 6.0,
+    "resting_window": 30,
+    "active_motion_px_per_frame": 8.0,
+    "rest_min_duration_sec": 10.0,
+    "anomaly_min_duration_sec": 60.0,
+    "anomaly_jitter_px": 1.5,
+    "consum_min_dwell_sec": 3.0,
+    "food_roi": [
+      0.05,
+      0.55,
+      0.45,
+      0.95
+    ],
+    "water_roi": [
+      0.55,
+      0.55,
+      0.95,
+      0.95
+    ]
+  },
+  "alert": {
+    "enable_sound": true,
+    "cooldown_sec": 30.0,
+    "enable_desktop_popup": true
+  }
+}

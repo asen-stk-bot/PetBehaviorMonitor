@@ -15,6 +15,7 @@
 | [03_测试报告.md](docs/03_测试报告.md) | 测试报告 |
 | [04_用户手册.md](docs/04_用户手册.md) | 用户手册 |
 | [05_实训总结.md](docs/05_实训总结.md) | 实训总结 |
+| [06_数据集资源.md](docs/06_数据集资源.md) | 训练/测试数据集资源清单（含真实宠物行为视频） |
 | [main.py](main.py) | 程序入口（GUI / 报告 / 训练 / 测试） |
 | [src/pet_monitor/](src/pet_monitor) | 源代码 |
 | [scripts/generate_demo_video.py](scripts/generate_demo_video.py) | 演示视频生成脚本 |
