@@ -1,0 +1,19 @@
+# 软件工程项目训练 · 宠物行为识别监测系统
+# Pet Behavior Recognition and Monitoring System
+# Python 依赖 / Python Dependencies
+#
+# 注意 ultralytics 在 Windows 上需要 PyTorch；CPU 版可工作但较慢。
+# 如需 GPU 推理，请先按 https://pytorch.org/ 安装匹配的 CUDA 版本。
+
+numpy>=1.26,<3.0
+opencv-python>=4.8.0
+ultralytics>=8.0.200
+PyQt5>=5.15.0
+Pillow>=10.0.0
+
+# 测试与开发
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# 打包（可选）
+pyinstaller>=6.0.0
