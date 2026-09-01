@@ -34,9 +34,11 @@
 1. PyCharm → **Open** → 选中本项目文件夹（`PetBehaviorMonitor`）
 2. 等待右下角索引完成，确认解释器已自动识别为 `venv\Scripts\python.exe`
    （若未自动识别：**File → Settings → Project → Python Interpreter → 齿轮 → Add Local Interpreter → Existing → 选 `venv\Scripts\python.exe`**）
-3. 右键 `main.py` → **Run 'main'** 直接运行
+3. 直接运行：顶部工具栏**运行按钮旁的下拉框**里已预置两个运行配置（文件在 `.run/` 目录）：
+   - **宠物监测-演示模式(--demo)**：播放内置演示视频，无需摄像头，打开即见效果
+   - **宠物监测-摄像头模式**：使用本机摄像头实时监测
 
-> 想直接看效果：右键 `main.py` → Modify Run Configuration → Parameters 填 `--demo`。
+> 若下拉框没显示配置：右键 `main.py` → **Run 'main'** 先跑一次即可；或手动在 Parameters 里填 `--demo`。
 
 ### 方式 B：双击运行 / 其他电脑一键初始化
 
@@ -69,6 +71,44 @@ pyinstaller pet_monitor.spec
 ```
 
 > **提示**：首次运行会自动下载 `yolov8n.pt`（约 6 MB），保存到 `data/models/` 目录（本项目已预置，无需再下载）。
+
+---
+
+## 版本管理与 GitHub 提交
+
+### 仓库信息
+
+- 远程仓库：`https://github.com/asen-stk-bot/PetBehaviorMonitor`（**私有**）
+- 认证方式：SSH（已配置部署密钥，走 443 端口，**无需输入密码**）
+
+### 日常提交（改完代码后）
+
+在 PyCharm 底部 **Terminal** 里依次执行：
+
+```bash
+git add -A
+git commit -m "说明这次改了什么"
+git push
+```
+
+> 也可用 PyCharm 图形界面：顶部菜单 **Git → Commit…** 勾选改动 → 提交并推送（Commit and Push）。
+
+### 换电脑 / 重新克隆
+
+```bash
+# 1. 生成密钥（本机若已有可跳过）
+ssh-keygen -t ed25519 -C "你的邮箱"
+
+# 2. 把公钥（~/.ssh/id_ed25519.pub 内容）加到 GitHub 仓库的 Settings → Deploy keys
+
+# 3. 走 443 端口克隆
+git clone ssh://git@ssh.github.com:443/asen-stk-bot/PetBehaviorMonitor.git
+
+# 4. 安装依赖
+cd PetBehaviorMonitor && python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt
+```
+
+> 若无法访问 GitHub：需开启 Watt Toolkit 等加速工具，或将 SSH 连接端口改为 `ssh.github.com:443`（本项目已配好）。
 
 ---
 
