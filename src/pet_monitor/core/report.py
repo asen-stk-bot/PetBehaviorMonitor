@@ -239,7 +239,7 @@ def _render_html(overview: dict[str, Any], activity: list[dict[str, Any]],
 <div class="wrap">
   <header>
     <h1>宠物行为识别监测系统 · 行为分析报告</h1>
-    <div class="sub">南京工程学院 · 软件工程231 · 软件工程项目训练 &nbsp;|&nbsp; 统计日期：{date_str} &nbsp;|&nbsp; 生成时间：{_fmt_ts(time.time())}</div>
+    <div class="sub">南京工程学院 · 软件工程232 · 软件工程项目训练 &nbsp;|&nbsp; 统计日期：{date_str} &nbsp;|&nbsp; 生成时间：{_fmt_ts(time.time())}</div>
   </header>
 
   <div class="cards">{card_html}</div>

@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self, "关于",
             "<h3>宠物行为识别监测系统 v1.0</h3>"
-            "<p>南京工程学院 · 软件工程231 · 软件工程项目训练</p>"
+            "<p>南京工程学院 · 软件工程232 · 软件工程项目训练</p>"
             "<p>指导教师：张冰</p>"
             "<p>技术栈：Python · YOLOv8 · OpenCV · PyQt5 · SQLite</p>",
         )
