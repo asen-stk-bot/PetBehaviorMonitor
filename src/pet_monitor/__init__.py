@@ -6,7 +6,7 @@ Pet Behavior Recognition and Monitoring System
 """
 
 __version__ = "1.0.0"
-__author__ = "软件工程232 - 江春"
+__author__ = "软件工程232 - 程祥凯"
 __course__ = "软件工程项目训练"
 __instructor__ = "张冰"
 __institution__ = "南京工程学院 · 计算机工程学院 · 人工智能学院"
