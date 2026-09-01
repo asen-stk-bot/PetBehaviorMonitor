@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -21,6 +22,29 @@ ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+
+def _ensure_qt_plugin_path() -> None:
+    """强制 PyQt5 用当前 Python 解释器自带的 Qt5 plugins。
+
+    解决 Windows 上的常见错误：
+        "This application failed to start because no Qt platform plugin
+         could be initialized. Reinstalling the application may fix this problem."
+
+    触发场景：当 Anaconda / 系统 Python 装了不完整的 PyQt5，PyQt5 启动时
+    会按 PATH/PYTHONPATH 顺序查 plugins，结果找到了坏的那份。
+    这里在 import PyQt5 之前把 QT_PLUGIN_PATH 钉死到当前 venv 的 plugins 目录。
+    """
+    try:
+        import PyQt5
+        plugin_dir = Path(PyQt5.__file__).resolve().parent / "Qt5" / "plugins"
+        if plugin_dir.is_dir():
+            os.environ.setdefault("QT_PLUGIN_PATH", str(plugin_dir))
+    except Exception:
+        pass  # 没装 PyQt5 就别折腾了（CLI/测试模式不需要）
+
+
+_ensure_qt_plugin_path()
 
 
 def parse_args() -> argparse.Namespace:
