@@ -11,9 +11,18 @@ ultralytics>=8.0.200
 PyQt5>=5.15.0
 Pillow>=10.0.0
 
+# ByteTrack 跟踪（ultralytics 内置需要）
+lap>=0.5.12
+
+# 报告与 CLI
+reportlab>=4.0.0    # PDF 报告
+rich>=13.0.0        # CLI 彩打模式
+imageio>=2.30.0     # 演示 GIF
+
 # 测试与开发
 pytest>=7.4.0
 pytest-cov>=4.1.0
+mypy>=1.0.0         # 类型检查
 
 # 打包（可选）
 pyinstaller>=6.0.0

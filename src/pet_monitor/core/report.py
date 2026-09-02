@@ -312,6 +312,197 @@ def export_csv(db: Database | None = None, out_dir: Path | None = None) -> Path:
     return out
 
 
+# --------------------------------------------------------------------------- #
+# PDF 报告（基于 reportlab）
+# --------------------------------------------------------------------------- #
+def export_pdf(db: Database | None = None, out_dir: Path | None = None,
+               date_str: str | None = None) -> Path:
+    """导出 PDF 报告（封面+总览+行为分布+分时活动+报警+快照），返回文件路径。
+
+    字体：使用 reportlab 内置的中文 CID 字体 STSong-Light，免安装系统字体。
+    """
+    import datetime
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak,
+    )
+
+    db = db or Database()
+    date_str = date_str or datetime.date.today().strftime("%Y-%m-%d")
+    out_dir = Path(out_dir) if out_dir else REPORT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"report_{date_str}.pdf"
+
+    # 注册中文字体（reportlab 内置 CID，无需字体文件）
+    pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+    zh = "STSong-Light"
+
+    overview = db.stats_overview()
+    activity = db.hourly_activity(date_str)
+    alerts = db.list_alerts(limit=50)
+    snapshots = db.list_snapshots(limit=6)
+
+    doc = SimpleDocTemplate(
+        str(out), pagesize=A4,
+        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=2 * cm, bottomMargin=2 * cm,
+        title="宠物行为监测报告",
+    )
+
+    # 样式
+    base = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1", parent=base["Heading1"], fontName=zh, fontSize=20, spaceAfter=8)
+    h2 = ParagraphStyle("h2", parent=base["Heading2"], fontName=zh, fontSize=14, spaceAfter=6, textColor=colors.HexColor("#5b8def"))
+    body = ParagraphStyle("body", parent=base["Normal"], fontName=zh, fontSize=10, leading=14)
+    small = ParagraphStyle("small", parent=base["Normal"], fontName=zh, fontSize=8, textColor=colors.grey)
+    big = ParagraphStyle("big", parent=base["Normal"], fontName=zh, fontSize=22, alignment=1, textColor=colors.HexColor("#222"))
+
+    story = []
+
+    # ----- 封面 -----
+    story.append(Spacer(1, 4 * cm))
+    story.append(Paragraph("宠物行为识别监测系统", h1))
+    story.append(Paragraph("行为分析报告", h1))
+    story.append(Spacer(1, 1 * cm))
+    story.append(Paragraph(f"统计日期：<b>{date_str}</b>", body))
+    story.append(Paragraph(f"生成时间：{_fmt_ts(time.time())}", body))
+    story.append(Paragraph("南京工程学院 · 软件工程232 · 软件工程项目训练", body))
+    story.append(Paragraph("作者：程祥凯", body))
+    story.append(PageBreak())
+
+    # ----- 总览卡片 -----
+    story.append(Paragraph("一、总览", h2))
+    cards = [
+        ["监测事件数", f"{overview.get('total_events', 0):,}"],
+        ["报警记录", f"{overview.get('total_alerts', 0):,}"],
+        ["报警快照", f"{overview.get('total_snapshots', 0):,}"],
+        ["累计监测时长", _fmt_duration(overview.get("total_sec", 0.0))],
+    ]
+    card_tbl = Table(
+        [[Paragraph(f"<b>{k}</b><br/><font size=18>{v}</font>", body) for k, v in cards]],
+        colWidths=[3.6 * cm] * 4,
+    )
+    card_tbl.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#e6e8ec")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e6e8ec")),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fafbfc")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+    ]))
+    story.append(card_tbl)
+    story.append(Spacer(1, 0.6 * cm))
+
+    # ----- 行为分布 -----
+    dist = overview.get("behavior_distribution", {})
+    story.append(Paragraph("二、行为时长分布", h2))
+    if dist:
+        total = sum(dist.values()) or 1.0
+        rows = [["行为", "时长", "占比"]]
+        for k, v in sorted(dist.items(), key=lambda kv: -kv[1]):
+            rows.append([
+                BEHAVIOR_LABELS_CN.get(k, k),
+                _fmt_duration(v),
+                f"{v / total * 100:.1f}%",
+            ])
+        tbl = Table(rows, colWidths=[4 * cm, 4 * cm, 3 * cm])
+        tbl.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), zh),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#5b8def")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#ddd")),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafbfc")]),
+        ]))
+        story.append(tbl)
+    else:
+        story.append(Paragraph("暂无行为数据", body))
+    story.append(Spacer(1, 0.6 * cm))
+
+    # ----- 分时活动 -----
+    story.append(Paragraph("三、分时活动（24 小时）", h2))
+    if any(b["total"] for b in activity):
+        # 用文本表格 + 简单条形字符
+        rows = [["小时", "事件数"]]
+        max_n = max((b["total"] for b in activity), default=1) or 1
+        for h, b in enumerate(activity):
+            n = b["total"]
+            bar = "█" * int(20 * n / max_n) if max_n else ""
+            rows.append([f"{h:02d}:00", f"{n:>4}  {bar}"])
+        tbl = Table(rows, colWidths=[2 * cm, 12 * cm])
+        tbl.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), zh),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("FONTNAME", (1, 1), (1, -1), "Courier"),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#5b8def")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.2, colors.HexColor("#eee")),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.append(tbl)
+    else:
+        story.append(Paragraph("当日无活动记录", body))
+    story.append(Spacer(1, 0.6 * cm))
+
+    # ----- 最近报警 -----
+    story.append(Paragraph("四、最近报警（最多 50 条）", h2))
+    if alerts:
+        rows = [["时间", "级别", "消息"]]
+        for a in alerts[:50]:
+            rows.append([_fmt_ts(a["ts"]), a["level"], a["message"]])
+        tbl = Table(rows, colWidths=[4 * cm, 2.2 * cm, 9 * cm])
+        tbl.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (-1, -1), zh),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#5b8def")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.2, colors.HexColor("#eee")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(tbl)
+    else:
+        story.append(Paragraph("暂无报警记录", body))
+    story.append(Spacer(1, 0.6 * cm))
+
+    # ----- 快照（嵌入图片） -----
+    story.append(Paragraph("五、报警快照", h2))
+    if snapshots:
+        img_rows = [[]]
+        for s in snapshots[:6]:
+            p = Path(s["path"])
+            if p.exists() and p.suffix.lower() in (".jpg", ".jpeg", ".png"):
+                try:
+                    img_rows[0].append(
+                        Image(str(p), width=4.8 * cm, height=3.2 * cm)
+                    )
+                except Exception:
+                    pass
+        if img_rows[0]:
+            tbl = Table(img_rows, colWidths=[5 * cm] * len(img_rows[0]))
+            tbl.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#ddd")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            story.append(tbl)
+        else:
+            story.append(Paragraph("快照文件无法读取", body))
+    else:
+        story.append(Paragraph("暂无报警快照（触发异常报警时自动截图）", body))
+
+    story.append(Spacer(1, 1 * cm))
+    story.append(Paragraph("由宠物行为识别监测系统自动生成", small))
+
+    doc.build(story)
+    return out
+
+
 if __name__ == "__main__":
     db = Database()
     p = generate_report(db)

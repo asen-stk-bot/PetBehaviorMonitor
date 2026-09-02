@@ -69,8 +69,17 @@ python main.py --demo
 # 生成行为分析报告（HTML + CSV）
 python main.py --report
 
+# 生成 PDF 报告（可与 --report 联用）
+python main.py --pdf
+
+# CLI 彩打模式（无 GUI 启动，用 rich 实时打日志/统计）
+python main.py --cli --video data/videos/pets_real.mp4
+
 # 微调 YOLOv8 模型（需准备数据集）
 python main.py --train --data path/to/dataset --epochs 50
+
+# 生成演示 GIF（给 PPT/课程展示用）
+python scripts/make_demo_gif.py
 
 # 运行单元测试
 python main.py --tests
@@ -186,6 +195,9 @@ PetBehaviorMonitor/
 | 桌面通知 | 报警时通过系统托盘发桌面弹窗（最小化也能看到） |
 | 多视频源 | 内置猫/狗视频 + 摄像头 + 本地文件，运行中可一键切换 |
 | 模型训练 | 提供 YOLOv8 微调脚本（`--train`），补齐训练环节 |
+| PDF 报告 | 一键导出 PDF 行为分析报告（reportlab + 内置中文字体） |
+| CLI 彩打 | 无 GUI 启动，用 rich 实时打印检测/行为/报警/统计面板 |
+| 演示 GIF | 视频 + 检测框 + 行为面板 → GIF，方便 PPT/课程展示 |
 
 ---
 

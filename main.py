@@ -57,6 +57,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tests", action="store_true", help="运行单元测试后退出")
     p.add_argument("--gen-demo", action="store_true", help="仅生成演示视频后退出")
     p.add_argument("--report", action="store_true", help="生成 HTML 报告 + CSV 导出后退出")
+    p.add_argument("--pdf", action="store_true", help="生成 PDF 报告（可与 --report 合并）")
+    p.add_argument("--no-html", action="store_true", help="跳过 HTML 报告（仅与 --pdf 联用时）")
+    p.add_argument("--cli", action="store_true", help="CLI 彩打模式（无 GUI，用 rich 实时打日志/统计）")
     p.add_argument("--date", help="报告统计日期（YYYY-MM-DD，默认今天）")
     p.add_argument("--train", action="store_true", help="微调 YOLOv8 模型")
     p.add_argument("--data", help="训练数据集目录（配合 --train）")
@@ -95,8 +98,8 @@ def main() -> int:
     if args.tests:
         return run_tests()
 
-    if args.report:
-        return run_report(args.date)
+    if args.report or args.pdf:
+        return run_report(date_str=args.date, do_html=not args.no_html, do_pdf=args.pdf)
 
     if args.train:
         return run_train(args)
@@ -114,6 +117,11 @@ def main() -> int:
         win.show()
         QTimer.singleShot(500, win._start_monitor)
         return app.exec_()
+
+    if args.cli:
+        from pet_monitor.cli.runner import run_cli_mode
+        src = args.video or (ensure_demo() if args.demo else 0)
+        return run_cli_mode(source=src)
 
     from pet_monitor.ui.main_window import run_app
     if args.video:
@@ -150,14 +158,23 @@ def run_tests() -> int:
     return 0 if result.wasSuccessful() else 1
 
 
-def run_report(date_str: str | None = None) -> int:
-    """生成 HTML 报告 + CSV 导出。"""
-    from pet_monitor.core.report import export_csv, generate_report
+def run_report(date_str: str | None = None, do_html: bool = True,
+               do_pdf: bool = False) -> int:
+    """生成 HTML 报告 + CSV 导出 +（可选）PDF 报告。"""
+    from pet_monitor.core.report import export_csv, generate_report, export_pdf
 
-    html_path = generate_report(date_str=date_str)
+    paths = []
+    if do_html:
+        html_path = generate_report(date_str=date_str)
+        paths.append(("HTML 报告", html_path))
+    if do_pdf:
+        pdf_path = export_pdf(date_str=date_str)
+        paths.append(("PDF 报告", pdf_path))
     csv_path = export_csv()
-    print(f"HTML 报告已生成: {html_path}")
-    print(f"事件 CSV 已导出: {csv_path}")
+    paths.append(("事件 CSV", csv_path))
+
+    for label, p in paths:
+        print(f"{label}已生成: {p}")
     return 0
 
 
