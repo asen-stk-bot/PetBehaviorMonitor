@@ -4,6 +4,11 @@
 > 软件工程项目训练（指导教师：**张冰**）
 > 课题：**宠物行为识别监测系统**（自选课题）
 
+[![Tests](https://img.shields.io/badge/tests-25%2F25-brightgreen)](tests/)
+[![mypy](https://img.shields.io/badge/mypy-0%20errors-blue)](mypy.ini)
+[![Coverage](https://img.shields.io/badge/coverage-44%25-yellow)](data/_coverage/)
+[![Python](https://img.shields.io/badge/python-3.9+-blue)](https://www.python.org)
+
 ---
 
 ## 目录
