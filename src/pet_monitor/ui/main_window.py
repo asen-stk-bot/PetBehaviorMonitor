@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
     QAction, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QGridLayout,
     QGroupBox, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QSizePolicy, QSpinBox,
-    QSplitter, QStatusBar, QStyle, QTabWidget, QTableWidget,
+    QSplitter, QStatusBar, QStyle, QSystemTrayIcon, QTabWidget, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget, QScrollArea,
 )
 
@@ -83,8 +83,12 @@ class MainWindow(QMainWindow):
         self._db = get_db()
         self._alert.set_popup_callback(self._on_alert_popup)
 
+        # 系统托盘 + 桌面通知
+        self._init_tray()
+
         self._bridge = _StateBridge()
         self._bridge.frame_ready.connect(self._on_frame)
+        self.video.roi_drawn.connect(self._on_roi_drawn)
 
         self._build_ui()
         self._load_config()
@@ -172,15 +176,24 @@ class MainWindow(QMainWindow):
         gb_src = QGroupBox("视频源")
         gl = QGridLayout(gb_src)
         self.cmb_source = QComboBox()
-        self.cmb_source.addItems(["默认摄像头 (0)", "摄像头 1", "摄像头 2"])
-        self.cmb_source.setEditable(True)
+        # 内置素材 + 摄像头/文件多种源，运行中可切换
+        from ..core.video_source import list_builtin_sources, BUILTIN_SOURCE_LABELS
+        builtin = list_builtin_sources()
+        for key in builtin:
+            self.cmb_source.addItem(BUILTIN_SOURCE_LABELS.get(key, key), userData=("builtin", key))
+        self.cmb_source.addItem("默认摄像头 (0)", userData=("camera", 0))
+        self.cmb_source.addItem("摄像头 1", userData=("camera", 1))
+        self.cmb_source.addItem("摄像头 2", userData=("camera", 2))
+        self.cmb_source.currentIndexChanged.connect(self._on_source_changed)
         self.ed_source_path = QLineEdit()
         self.ed_source_path.setPlaceholderText("或填写视频文件路径…")
         self.btn_browse = QPushButton("浏览…")
         self.btn_browse.clicked.connect(self._browse_video)
-        gl.addWidget(self.cmb_source, 0, 0, 1, 2)
-        gl.addWidget(self.ed_source_path, 1, 0)
-        gl.addWidget(self.btn_browse, 1, 1)
+        gl.addWidget(QLabel("源类型"), 0, 0)
+        gl.addWidget(self.cmb_source, 0, 1)
+        gl.addWidget(QLabel("文件路径"), 1, 0)
+        gl.addWidget(self.ed_source_path, 1, 1)
+        gl.addWidget(self.btn_browse, 1, 2)
         g.addWidget(gb_src)
 
         gb_act = QGroupBox("操作")
@@ -221,7 +234,7 @@ class MainWindow(QMainWindow):
         tg.addWidget(self.sp_ano, 3, 1)
         g.addWidget(gb_th)
 
-        gb_roi = QGroupBox("进食/饮水 ROI（归一化 0-1）")
+        gb_roi = QGroupBox("进食/饮水 ROI（归一化 0-1，可直接编辑或下面点按钮在视频上拖拽）")
         rg = QGridLayout(gb_roi)
         rg.addWidget(QLabel("进食区:"), 0, 0)
         self.ed_food = QLineEdit(",".join(f"{x:.2f}" for x in CONFIG.behavior.food_roi))
@@ -229,9 +242,22 @@ class MainWindow(QMainWindow):
         rg.addWidget(QLabel("饮水区:"), 1, 0)
         self.ed_water = QLineEdit(",".join(f"{x:.2f}" for x in CONFIG.behavior.water_roi))
         rg.addWidget(self.ed_water, 1, 1)
-        btn_apply_roi = QPushButton("应用 ROI")
+        btn_apply_roi = QPushButton("应用 ROI（手动）")
         btn_apply_roi.clicked.connect(self._apply_roi)
         rg.addWidget(btn_apply_roi, 2, 0, 1, 2)
+
+        # 视频上交互绘制按钮
+        hl_draw = QHBoxLayout()
+        self.btn_draw_food = QPushButton("✏  画食盆 (拖拽)")
+        self.btn_draw_food.setCheckable(True)
+        self.btn_draw_food.toggled.connect(lambda c: self._set_edit_roi("food" if c else "none"))
+        self.btn_draw_water = QPushButton("✏  画水盆 (拖拽)")
+        self.btn_draw_water.setCheckable(True)
+        self.btn_draw_water.toggled.connect(lambda c: self._set_edit_roi("water" if c else "none"))
+        hl_draw.addWidget(self.btn_draw_food)
+        hl_draw.addWidget(self.btn_draw_water)
+        hl_draw.addStretch(1)
+        rg.addLayout(hl_draw, 3, 0, 1, 2)
         g.addWidget(gb_roi)
 
         g.addStretch(1)
@@ -323,12 +349,29 @@ class MainWindow(QMainWindow):
         )
         if path:
             self.ed_source_path.setText(path)
+            # 自动选回 "默认摄像头" 占位以提示当前以文件路径生效
+            self.cmb_source.setCurrentIndex(0)
+
+    def _on_source_changed(self, _idx: int) -> None:
+        """切换视频源时若监控运行中，自动重启。"""
+        if self._monitor and self._monitor.is_running():
+            self.statusBar().showMessage("切换视频源中…", 2000)
+            self._stop_monitor()
+            self._start_monitor()
 
     def _resolve_source(self) -> int | str:
         path = self.ed_source_path.text().strip()
         if path:
             return path
-        return int(self.cmb_source.currentText().split("(")[-1].rstrip(")")) if self.cmb_source.currentText().startswith("默认") else 0
+        data = self.cmb_source.currentData()
+        if data is None:
+            return 0
+        kind, key = data
+        if kind == "builtin":
+            from ..core.video_source import resolve_builtin_path
+            return resolve_builtin_path(key)
+        # camera
+        return int(key)
 
     def _start_monitor(self) -> None:
         if self._monitor and self._monitor.is_running():
@@ -363,6 +406,35 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "ROI 格式错误", str(e))
 
+    def _set_edit_roi(self, kind: str) -> None:
+        """开启/关闭视频上拖拽画 ROI 模式。"""
+        # 互斥：开 food 时关 water，反之亦然
+        if kind == "food":
+            self.btn_draw_water.setChecked(False)
+        elif kind == "water":
+            self.btn_draw_food.setChecked(False)
+        else:
+            self.btn_draw_food.setChecked(False)
+            self.btn_draw_water.setChecked(False)
+        self.video.set_edit_kind(kind)
+        if kind != "none":
+            self.video.setFocus()
+            self.statusBar().showMessage(f"在视频画面上拖拽绘制{kind} ROI（Esc 取消）", 5000)
+        else:
+            self.statusBar().showMessage("已退出 ROI 编辑", 2000)
+
+    def _on_roi_drawn(self, kind: str, norm: tuple) -> None:
+        """用户在视频上拖拽画完 ROI 后的回调。"""
+        if kind == "food":
+            CONFIG.behavior.food_roi = norm
+            self.ed_food.setText(",".join(f"{x:.2f}" for x in norm))
+        elif kind == "water":
+            CONFIG.behavior.water_roi = norm
+            self.ed_water.setText(",".join(f"{x:.2f}" for x in norm))
+        self.statusBar().showMessage(f"{kind} ROI 已更新: {norm}", 4000)
+        # 退出编辑态
+        self._set_edit_roi("none")
+
     def _action_open_video(self) -> None:
         self._browse_video()
 
@@ -388,6 +460,46 @@ class MainWindow(QMainWindow):
     def _on_alert_popup(self, rec: AlertRecord) -> None:
         # 状态栏轻提示
         self.statusBar().showMessage(f"[{rec.level}] {rec.message}", 5000)
+        # 系统托盘 + 桌面通知弹窗（即使主窗口最小化也能看到）
+        if getattr(self, "_tray", None) is not None and QSystemTrayIcon.isSystemTrayAvailable():
+            icon_kind = (
+                QSystemTrayIcon.Warning if rec.level in ("warning", "anomaly")
+                else QSystemTrayIcon.Information
+            )
+            self._tray.showMessage(
+                f"宠物监控 · {rec.level}",
+                rec.message,
+                icon_kind,
+                4000,
+            )
+
+    def _init_tray(self) -> None:
+        """初始化系统托盘图标 + 双击恢复主窗口。"""
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self._tray = None
+            return
+        # 没资源文件就用系统默认应用图标
+        style_ico = self.style().standardIcon(QStyle.SP_ComputerIcon)
+        self._tray = QSystemTrayIcon(style_ico, self)
+        self._tray.setToolTip("宠物行为识别监测系统")
+        from PyQt5.QtWidgets import QMenu
+        menu = QMenu()
+        act_show = menu.addAction("显示主窗口")
+        act_show.triggered.connect(self._restore_from_tray)
+        act_quit = menu.addAction("退出")
+        act_quit.triggered.connect(self.close)
+        self._tray.setContextMenu(menu)
+        self._tray.activated.connect(self._on_tray_activated)
+        self._tray.show()
+
+    def _on_tray_activated(self, reason) -> None:
+        if reason == QSystemTrayIcon.Trigger:  # 单击
+            self._restore_from_tray()
+
+    def _restore_from_tray(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
 
     def _refresh_history(self) -> None:
         try:

@@ -55,6 +55,9 @@ class DetectorConfig:
     device: str = os.environ.get("PET_DEVICE", "")
     imgsz: int = 640
     pet_class_ids: tuple = (15, 16)  # cat, dog in COCO
+    # 跟踪器：True 用 ultralytics 内置 ByteTrack（更专业、ID 更稳），
+    # False 退回自写 IoU 贪心跟踪（detector.SimpleTracker，便于教学对比）
+    use_bytetrack: bool = True
 
 
 # --------------------------------------------------------------------------- #
@@ -89,6 +92,13 @@ class BehaviorConfig:
 
     # 在 ROI 内停留多久才判定进食/饮水
     consum_min_dwell_sec: float = 3.0
+
+    # 光流辅助（Farneback）：用全局光流幅值辅助 active/resting 判定，
+    # 减少 bbox 中心检测抖动导致的误判。None/False 关闭。
+    enable_optical_flow: bool = True
+    flow_downscale: int = 320          # 光流计算前缩放到该宽度，加速
+    flow_active_threshold: float = 4.0  # 光流幅值高于此 → 倾向 active
+    flow_resting_threshold: float = 1.5  # 光流幅值低于此 → 强化 resting
 
 
 # --------------------------------------------------------------------------- #
@@ -148,6 +158,7 @@ def _serializable() -> dict:
             "iou_threshold": CONFIG.detector.iou_threshold,
             "device": CONFIG.detector.device,
             "imgsz": CONFIG.detector.imgsz,
+            "use_bytetrack": CONFIG.detector.use_bytetrack,
         },
         "behavior": {
             "resting_motion_px": CONFIG.behavior.resting_motion_px,
@@ -157,6 +168,9 @@ def _serializable() -> dict:
             "anomaly_min_duration_sec": CONFIG.behavior.anomaly_min_duration_sec,
             "anomaly_jitter_px": CONFIG.behavior.anomaly_jitter_px,
             "consum_min_dwell_sec": CONFIG.behavior.consum_min_dwell_sec,
+            "enable_optical_flow": CONFIG.behavior.enable_optical_flow,
+            "flow_active_threshold": CONFIG.behavior.flow_active_threshold,
+            "flow_resting_threshold": CONFIG.behavior.flow_resting_threshold,
             "food_roi": list(CONFIG.behavior.food_roi),
             "water_roi": list(CONFIG.behavior.water_roi),
         },
@@ -197,13 +211,18 @@ def load_config(path: Path | None = None) -> bool:
             setattr(CONFIG.detector, k, d[k])
     if d.get("device") is not None:
         CONFIG.detector.device = d["device"]
+    if "use_bytetrack" in d and d["use_bytetrack"] is not None:
+        CONFIG.detector.use_bytetrack = bool(d["use_bytetrack"])
 
     b = data.get("behavior", {})
     for k in ("resting_motion_px", "resting_window", "active_motion_px_per_frame",
               "rest_min_duration_sec", "anomaly_min_duration_sec",
-              "anomaly_jitter_px", "consum_min_dwell_sec"):
+              "anomaly_jitter_px", "consum_min_dwell_sec",
+              "flow_active_threshold", "flow_resting_threshold"):
         if k in b and b[k] is not None:
             setattr(CONFIG.behavior, k, b[k])
+    if "enable_optical_flow" in b and b["enable_optical_flow"] is not None:
+        CONFIG.behavior.enable_optical_flow = bool(b["enable_optical_flow"])
     if isinstance(b.get("food_roi"), list) and len(b["food_roi"]) == 4:
         CONFIG.behavior.food_roi = tuple(b["food_roi"])
     if isinstance(b.get("water_roi"), list) and len(b["water_roi"]) == 4:

@@ -17,12 +17,19 @@
 | [05_实训总结.md](docs/05_实训总结.md) | 实训总结 |
 | [06_数据集资源.md](docs/06_数据集资源.md) | 训练/测试数据集资源清单（含真实宠物行为视频） |
 | [07_项目简介.md](docs/07_项目简介.md) | 项目简介与代码仓库链接 |
+| [08_系统设计图.md](docs/08_系统设计图.md) | 架构图 / 数据流图 / ER图 / 行为判定流程图（Mermaid） |
+| [09_模型精度对比实验.md](docs/09_模型精度对比实验.md) | YOLOv8n vs YOLOv8s 在真实视频上的精度对比 + 选型依据 |
+| [10_工程质量.md](docs/10_工程质量.md) | 测试 / 覆盖率 / mypy / CI 全流程总结 |
 | [main.py](main.py) | 程序入口（GUI / 报告 / 训练 / 测试） |
 | [src/pet_monitor/](src/pet_monitor) | 源代码 |
 | [scripts/generate_demo_video.py](scripts/generate_demo_video.py) | 演示视频生成脚本 |
 | [scripts/train_model.py](scripts/train_model.py) | YOLOv8 微调训练脚本 |
+| [scripts/eval_models.py](scripts/eval_models.py) | YOLOv8n vs YOLOv8s 精度对比实验脚本 |
 | [tests/test_units.py](tests/test_units.py) | 基础单元测试 |
 | [tests/test_features.py](tests/test_features.py) | 新增功能单元测试（统计 / 快照 / 报告 / 配置） |
+| [tests/test_video_source.py](tests/test_video_source.py) | 视频源解析单测 |
+| [.github/workflows/ci.yml](.github/workflows/ci.yml) | GitHub Actions 持续集成配置 |
+| [mypy.ini](mypy.ini) | mypy 类型检查配置（UI/检测/行为层降级） |
 | [requirements.txt](requirements.txt) | Python 依赖 |
 
 ---
@@ -137,13 +144,15 @@ PetBehaviorMonitor/
 │   │   ├── snapshot.py           # 报警快照（非 ASCII 路径安全）
 │   │   ├── report.py             # HTML 报告生成
 │   │   └── monitor.py            # 监控引擎（粘合层）
+│   │   └── video_source.py       # 视频源解析（内置素材/摄像头/文件）
 │   └── ui/
-│       ├── main_window.py        # PyQt5 主窗口（5 标签页 + 报告菜单）
-│       ├── video_widget.py       # 视频显示组件
+│       ├── main_window.py        # PyQt5 主窗口（5 标签页 + 系统托盘 + 报告菜单）
+│       ├── video_widget.py       # 视频显示组件（支持鼠标拖拽画 ROI）
 │       └── charts.py             # 纯 QPainter 图表组件
 └── tests/
     ├── test_units.py             # 基础单元测试
-    └── test_features.py          # 统计/快照/报告/配置测试
+    ├── test_features.py          # 统计/快照/报告/配置测试
+    └── test_video_source.py      # 视频源解析测试
 ```
 
 ---
@@ -153,8 +162,8 @@ PetBehaviorMonitor/
 | 层次 | 选型 |
 | --- | --- |
 | 编程语言 | Python 3.9+ |
-| 视觉模型 | YOLOv8（ultralytics） |
-| 视觉库 | OpenCV 4.x |
+| 视觉模型 | YOLOv8（ultralytics） · 内置 ByteTrack 跟踪器可选 |
+| 视觉库 | OpenCV 4.x（含光流辅助行为识别） |
 | GUI | PyQt5 |
 | 数据库 | SQLite（标准库） |
 | 打包 | PyInstaller |
@@ -173,6 +182,9 @@ PetBehaviorMonitor/
 | 报告导出 | 一键生成自包含 HTML 报告（含图表）+ 事件 CSV |
 | 可视化 | GUI 内置柱状图、快照画廊、事件/报警表格 |
 | 配置持久化 | 阈值/ROI 改动自动保存，跨会话恢复 |
+| GUI 画 ROI | 在视频画面上鼠标拖拽直接画食盆/水盆 ROI，免手填坐标 |
+| 桌面通知 | 报警时通过系统托盘发桌面弹窗（最小化也能看到） |
+| 多视频源 | 内置猫/狗视频 + 摄像头 + 本地文件，运行中可一键切换 |
 | 模型训练 | 提供 YOLOv8 微调脚本（`--train`），补齐训练环节 |
 
 ---

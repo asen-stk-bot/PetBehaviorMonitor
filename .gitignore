@@ -25,6 +25,9 @@ data/*.db-wal
 data/*.db-shm
 data/snapshots/
 data/reports/
+data/test_*/
+data/test_*.json
+data/_coverage/
 *.db
 *.sqlite3
 

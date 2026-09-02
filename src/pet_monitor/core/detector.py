@@ -14,6 +14,8 @@ YOLO 检测器
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import math
 import time
 from collections import deque
@@ -188,39 +190,57 @@ class PetDetector:
         )
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
-        """对单帧进行检测 + 跟踪。"""
+        """对单帧进行检测 + 跟踪。
+
+        跟踪策略由 ``CONFIG.detector.use_bytetrack`` 决定：
+        - True（默认）：调用 ``model.track(tracker='bytetrack.yaml', persist=True)``，
+          复用 ultralytics 内置 ByteTrack，ID 稳定性远优于 IoU 贪心，速度快。
+        - False：走自写 ``SimpleTracker``（IoU 贪心匹配），便于教学对比。
+        """
         if frame is None or frame.size == 0:
             return []
-        # ultralytics 支持 numpy BGR
-        results = self.model.predict(
-            frame,
+        common = dict(
             conf=self.cfg.conf_threshold,
             iou=self.cfg.iou_threshold,
             imgsz=self.cfg.imgsz,
             device=self.cfg.device or None,
             verbose=False,
         )
-        raw: list[Detection] = []
+        if self.cfg.use_bytetrack:
+            results = self.model.track(
+                frame, tracker="bytetrack.yaml", persist=True, **common
+            )
+        else:
+            results = self.model.predict(frame, **common)
         if not results:
-            return []
+            return [] if self.cfg.use_bytetrack else self.tracker.update([])
         r = results[0]
         boxes = r.boxes
-        if boxes is None or boxes.xyxy is None:
-            return self.tracker.update([])
+        if boxes is None or boxes.xyxy is None or len(boxes) == 0:
+            return [] if self.cfg.use_bytetrack else self.tracker.update([])
         xyxy = boxes.xyxy.cpu().numpy()
         conf = boxes.conf.cpu().numpy()
         cls = boxes.cls.cpu().numpy().astype(int)
-        for (x1, y1, x2, y2), c, k in zip(xyxy, conf, cls):
+        # ByteTrack 分配的 track_id（predict 模式下为 None）
+        ids = (
+            boxes.id.cpu().numpy().astype(int)
+            if boxes.id is not None else None
+        )
+        raw: list[Detection] = []
+        for i, ((x1, y1, x2, y2), c, k) in enumerate(zip(xyxy, conf, cls)):
             if k not in self.cfg.pet_class_ids:
                 continue
+            tid = int(ids[i]) if ids is not None else -1
             raw.append(
                 Detection(
-                    track_id=-1,
+                    track_id=tid,
                     species=self.COCO_NAMES.get(k, "pet"),
                     confidence=float(c),
                     bbox=(float(x1), float(y1), float(x2), float(y2)),
                 )
             )
+        if self.cfg.use_bytetrack:
+            return raw
         return self.tracker.update(raw)
 
 

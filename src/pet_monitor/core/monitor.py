@@ -136,7 +136,8 @@ class Monitor:
         t0 = time.time()
         detections = self._detector.detect(frame)
         h, w = frame.shape[:2]
-        outs = self._analyzer.update(detections, frame_size=(w, h), ts=t0)
+        # 传入 frame 供 BehaviorAnalyzer 计算光流（若开启）
+        outs = self._analyzer.update(detections, frame_size=(w, h), ts=t0, frame=frame)
 
         self._frame_count += 1
         self._total_frames += 1

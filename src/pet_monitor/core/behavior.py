@@ -87,8 +87,37 @@ class BehaviorAnalyzer:
     def __init__(self) -> None:
         self.cfg = CONFIG.behavior
         self.states: dict[int, _TrackState] = {}
+        # 光流辅助：缓存上一帧灰度，计算全局运动幅值
+        self._prev_gray: "np.ndarray | None" = None
+        self._flow_mag: float = 0.0
 
     # ---------------------------------------------------------- helpers
+    def _compute_flow(self, frame: np.ndarray) -> float:
+        """Farneback 稀疏光流平均幅值（降采样加速）。
+
+        光流衡量画面整体像素运动，独立于 bbox 中心抖动：
+        - 动物整体在动但检测框位置漂移时，光流能给出"确实在动"的证据；
+        - 动物静止、仅检测框抖动时，光流接近 0，可强化 resting 判定。
+        """
+        import cv2
+        h, w = frame.shape[:2]
+        target_w = self.cfg.flow_downscale
+        if w != target_w:
+            scale = target_w / w
+            small = cv2.resize(frame, (target_w, max(1, int(h * scale))))
+        else:
+            small = frame
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        if self._prev_gray is None:
+            self._prev_gray = gray
+            return 0.0
+        flow = cv2.calcOpticalFlowFarneback(
+            self._prev_gray, gray, None,
+            0.5, 3, 15, 3, 5, 1.1, 0,
+        )
+        self._prev_gray = gray
+        mag = np.sqrt(flow[..., 0] ** 2 + flow[..., 1] ** 2)
+        return float(mag.mean())
     @staticmethod
     def _motion_magnitude(history: deque) -> float:
         """最近 history 中两两相邻帧中心点平均像素位移。"""
@@ -133,11 +162,24 @@ class BehaviorAnalyzer:
         detections: Iterable[Detection],
         frame_size: tuple[int, int],
         ts: float | None = None,
+        frame: np.ndarray | None = None,
     ) -> list[BehaviorOutput]:
-        """对单帧的检测结果进行更新。"""
+        """对单帧的检测结果进行更新。
+
+        Args:
+            frame: 当前帧（可选）。传入且开启光流时，计算全局光流幅值
+                   作为 active/resting 的辅助判据；不传则只用 bbox 位移。
+        """
         ts = ts or time.time()
         out: list[BehaviorOutput] = []
         live_ids: set[int] = set()
+
+        # 全局光流（每帧算一次，所有 track 共用）
+        if frame is not None and self.cfg.enable_optical_flow:
+            try:
+                self._flow_mag = self._compute_flow(frame)
+            except Exception:
+                self._flow_mag = 0.0
 
         for det in detections:
             tid = det.track_id
@@ -185,6 +227,7 @@ class BehaviorAnalyzer:
 
         motion = self._motion_magnitude(history)
         jitter = self._jitter_magnitude(history)
+        flow = self._flow_mag
         last_center = history[-1][1]
         in_food = self._in_roi(last_center, cfg.food_roi, frame_size)
         in_water = self._in_roi(last_center, cfg.water_roi, frame_size)
@@ -194,10 +237,11 @@ class BehaviorAnalyzer:
             new = "eating"
         elif in_water:
             new = "drinking"
-        elif motion < cfg.resting_motion_px:
-            # 静止超过阈值：休息
+        elif motion < cfg.resting_motion_px and flow < cfg.flow_resting_threshold:
+            # bbox 几乎不动 且 全局光流也极小 → 真静止
             new = "resting"
-        elif motion > cfg.active_motion_px_per_frame:
+        elif motion > cfg.active_motion_px_per_frame or flow > cfg.flow_active_threshold:
+            # bbox 明显位移 或 全局光流明显 → 活动
             new = "active"
         else:
             new = "active"
