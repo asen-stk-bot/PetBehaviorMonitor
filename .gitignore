@@ -27,6 +27,7 @@ data/snapshots/
 data/reports/
 data/test_*/
 data/test_*.json
+data/test_export_*.csv
 data/_coverage/
 *.db
 *.sqlite3

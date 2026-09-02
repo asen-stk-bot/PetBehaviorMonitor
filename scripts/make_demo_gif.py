@@ -32,7 +32,7 @@ if str(SRC) not in sys.path:
 
 from pet_monitor.core.behavior import BEHAVIOR_LABELS_CN, BehaviorAnalyzer  # noqa: E402
 from pet_monitor.core.detector import PetDetector  # noqa: E402
-from pet_monitor.config import CONFIG  # noqa: E402
+from pet_monitor.config import CONFIG, load_config  # noqa: E402
 
 # 检测框配色（BGR）
 SPECIES_COLOR = {"cat": (255, 200, 100), "dog": (100, 200, 255), "pet": (200, 200, 200)}
@@ -107,7 +107,9 @@ def _draw_box(frame: np.ndarray, det, beh) -> np.ndarray:
 
 def make_gif(source: Path, out: Path, stride: int = 2, max_frames: int = 240,
              gif_fps: int = 8) -> None:
-    print(f"[gif] 加载检测器: {CONFIG.detector.model_name}")
+    # 显式加载 config.json，确保使用项目推荐的 yolov8s + conf=0.20
+    load_config()
+    print(f"[gif] 检测器: {CONFIG.detector.model_name}  conf={CONFIG.detector.conf_threshold}")
     detector = PetDetector()
     analyzer = BehaviorAnalyzer()
     cap = cv2.VideoCapture(str(source))
