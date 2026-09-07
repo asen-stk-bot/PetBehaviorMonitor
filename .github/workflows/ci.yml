@@ -12,6 +12,11 @@ on:
 jobs:
   test:
     runs-on: windows-latest
+    env:
+      # Windows runner 默认用 cp1252 读配置/源文件，会因 UTF-8 中文注释报
+      # UnicodeDecodeError；强制全 UTF-8 与本地开发环境一致
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     strategy:
       fail-fast: false
       matrix:
