@@ -474,7 +474,7 @@ def export_pdf(db: Database | None = None, out_dir: Path | None = None,
     # ----- 快照（嵌入图片） -----
     story.append(Paragraph("五、报警快照", h2))
     if snapshots:
-        img_rows = [[]]
+        img_rows: list[list[Image]] = [[]]
         for s in snapshots[:6]:
             p = Path(s["path"])
             if p.exists() and p.suffix.lower() in (".jpg", ".jpeg", ".png"):
